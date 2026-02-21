@@ -15,11 +15,13 @@ const DailyEntry = require('./DailyEntry');
 const Vehicle = require('./Vehicle');
 const FinancialSeason = require('./FinancialSeason');
 const Fuel = require('./Fuel');
+const cors = require('cors');
 
 
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(cors());
 
 
 
@@ -275,9 +277,18 @@ app.get('/plot/:email/:farm/:block/:plot', async (req, res) => {
 app.post('/plot', async (req, res) => {
   try {
     const { farm, block, plot, area, season, rowspace, variety, email, date } = req.body;
-    const newPlot = new Plot({ farm, block, plot, area, season, rowspace, variety, email, date });
-    await newPlot.save();
-    res.json(newPlot);
+    const plotExist = await Plot.findOne({ farm, block, plot });
+
+    if (plotExist) {
+      return res.status(400).json({
+        message: 'This plot already exists in this farm and block'
+      });
+    }
+    if (!plotExist) {
+      const newPlot = new Plot({ farm, block, plot, area, season, rowspace, variety, email, date });
+      await newPlot.save();
+      res.json(newPlot);
+    }
   } catch (error) {
     console.error('Error executing query', error);
     res.status(500).send('Internal Server Error');
