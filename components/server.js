@@ -148,34 +148,34 @@ app.patch("/farm/:id", async (req, res) => {
 app.delete('/farm/:id', async (req, res) => {
   try {
     const _id = req.params.id;
-    const user = await Farm.findByIdAndDelete(req.params.id);
+    const user = await Farm.findByIdAndDelete(_id);
 
     if (!user) {
-      return res.status(404).send("Data not found");
+      return res.status(404).json({ message: "Data not found" });
     }
 
-    if (!req.params.id) {
-      res.status(201).send();
-    }
+    // Send a proper response
+    res.status(200).json({ message: "Farm deleted successfully" });
+
   } catch (e) {
-    res.status(400).send(e);
-  }
-})
-
-app.delete('/farm', async (req, res) => {
-  try {
-    const { farm } = req.body;
-    const deletedFarm = await Farm.findOneAndDelete(farm);
-    if (!deletedFarm) {
-      res.status(404).json({ message: 'Record not found' });
-    } else {
-      res.json({ message: 'Record deleted successfully' });
-    }
-  } catch (error) {
-    console.error('Error deleting farm', error);
-    res.status(500).send('Internal Server Error');
+    res.status(400).json({ error: e.message });
   }
 });
+
+// app.delete('/farm', async (req, res) => {
+//   try {
+//     const { farm } = req.body;
+//     const deletedFarm = await Farm.findOneAndDelete(farm);
+//     if (!deletedFarm) {
+//       res.status(404).json({ message: 'Record not found' });
+//     } else {
+//       res.json({ message: 'Record deleted successfully' });
+//     }
+//   } catch (error) {
+//     console.error('Error deleting farm', error);
+//     res.status(500).send('Internal Server Error');
+//   }
+// });
 
 app.get('/variety', async (req, res) => {
   try {
@@ -277,18 +277,9 @@ app.get('/plot/:email/:farm/:block/:plot', async (req, res) => {
 app.post('/plot', async (req, res) => {
   try {
     const { farm, block, plot, area, season, rowspace, variety, email, date } = req.body;
-    const plotExist = await Plot.findOne({ farm, block, plot });
-
-    if (plotExist) {
-      return res.status(400).json({
-        message: 'This plot already exists in this farm and block'
-      });
-    }
-    if (!plotExist) {
-      const newPlot = new Plot({ farm, block, plot, area, season, rowspace, variety, email, date });
-      await newPlot.save();
-      res.json(newPlot);
-    }
+    const newPlot = new Plot({ farm, block, plot, area, season, rowspace, variety, email, date });
+    await newPlot.save();
+    res.json(newPlot);
   } catch (error) {
     console.error('Error executing query', error);
     res.status(500).send('Internal Server Error');
@@ -424,6 +415,19 @@ app.post('/product', async (req, res) => {
   } catch (error) {
     console.error('Error creating product', error);
     res.status(500).send('Internal Server Error');
+  }
+});
+
+app.patch("/product/:id", async (req, res) => {
+  try {
+    const _id = req.params.id;
+    const updateProduct = await Product.findByIdAndUpdate(_id, req.body, {
+      new: true
+    });
+    res.send(updateProduct);
+  }
+  catch (e) {
+    res.status(400).send(e);
   }
 });
 
