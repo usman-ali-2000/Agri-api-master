@@ -251,6 +251,16 @@ app.get('/plot', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
+app.get('/plot-farm/:farm', async (req, res) => {
+  try {
+    const { farm } = req.params;
+    const plots = await Plot.find({ farm: farm });
+    res.json(plots);
+  } catch (error) {
+    console.error('Error executing query', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
 
 app.get('/plot/:email', async (req, res) => {
   try {
