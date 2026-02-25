@@ -16,6 +16,7 @@ const Vehicle = require('./Vehicle');
 const FinancialSeason = require('./FinancialSeason');
 const Fuel = require('./Fuel');
 const cors = require('cors');
+const Counter = require('./Counter');
 
 
 const PORT = process.env.PORT || 3000;
@@ -797,10 +798,18 @@ app.post('/dailyentry/filter-range', async (req, res) => {
   }
 });
 
-
+app.get('/counter', async (req, res) => {
+  try {
+    const counters = await Counter.find().sort({ _id: 1 });
+    res.json(counters);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/dailyentry', async (req, res) => {
   try {
+    
     const entries = await DailyEntry.find().sort({ _id: -1 });
     res.json(entries);
   } catch (error) {

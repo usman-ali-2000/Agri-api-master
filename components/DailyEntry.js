@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
+const Counter = require('./Counter');
 
 const dailyEntrySchema = new mongoose.Schema({
-  id: String,
+  id: { type: String, unique: true, immutable: true }, // 👈 must be String now
+
   farm: String,
   plot: String,
   season: String,
@@ -19,12 +21,31 @@ const dailyEntrySchema = new mongoose.Schema({
   email: String,
   date: String,
   year: String,
-},
-  {
-    timestamps: true
+}, {
+  timestamps: true
+});
+
+dailyEntrySchema.pre('save', async function (next) {
+  try {
+    if (!this.isNew) return next();
+
+    const year = this.year || new Date().getFullYear();
+    this.year = year;
+
+    const counter = await Counter.findByIdAndUpdate(
+      `dailyEntry-${year}`,     
+      { $inc: { seq: 1 } },    
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    // Pad seq and set the id
+    const padded = String(counter.seq).padStart(4, '0');
+    this.id = `${year}-${padded}`;
+
+    next();
+  } catch (err) {
+    next(err);
   }
-);
+});
 
-const DailyEntry = mongoose.model('DailyEntry', dailyEntrySchema);
-
-module.exports = DailyEntry;
+module.exports = mongoose.model('DailyEntry', dailyEntrySchema);
