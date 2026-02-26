@@ -4,6 +4,7 @@ const express = require('express');
 const app = express();
 const uploadLogin = require('./Login');
 const Farm = require('./Farm');
+const Supplier = require('./Supplier');
 const Variety = require('./Variety');
 const Plot = require('./Plot');
 const Category = require('./Category');
@@ -162,6 +163,85 @@ app.delete('/farm/:id', async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+
+app.get('/supplier', async (req, res) => {
+  try {
+    const suppliers = await Supplier.find();
+    res.json(suppliers);
+  } catch (error) {
+    console.error('Error fetching suppliers', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// GET farm by id
+app.get('/supplier/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const supplierId = await Supplier.findById(id);
+    res.json(supplierId);
+  } catch (error) {
+    console.error('Error fetching supplier', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// GET supplier by email
+// app.get('/supplier/email/:email', async (req, res) => {
+//   try {
+//     const { email } = req.params;
+//     const farms = await Farm.find({ email: email });
+//     res.json(farms);
+//   } catch (error) {
+//     console.error('Error fetching farm', error);
+//     res.status(500).send('Internal Server Error');
+//   }
+// });
+
+// POST create supplier
+app.post('/supplier', async (req, res) => {
+  try {
+    const { email, supplier, date } = req.body;
+    const newSupplier = new Supplier({ email, supplier, date });
+    await newSupplier.save();
+    res.status(201).json(newSupplier);
+  } catch (error) {
+    console.error('Error creating supplier', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+//update Farm
+app.patch("/supplier/:id", async (req, res) => {
+  try {
+    const _id = req.params.id;
+    const updateSupplier = await Supplier.findByIdAndUpdate(_id, req.body, {
+      new: true
+    });
+    res.send(updateSupplier);
+  }
+  catch (e) {
+    res.status(400).send(e);
+  }
+});
+
+// DELETE farm
+app.delete('/supplier/:id', async (req, res) => {
+  try {
+    const _id = req.params.id;
+    const user = await Supplier.findByIdAndDelete(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Send a proper response
+    res.status(200).json({ message: "Supplier deleted successfully" });
+
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 
 // app.delete('/farm', async (req, res) => {
 //   try {
