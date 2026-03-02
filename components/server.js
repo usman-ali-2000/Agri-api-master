@@ -18,6 +18,7 @@ const FinancialSeason = require('./FinancialSeason');
 const Fuel = require('./Fuel');
 const cors = require('cors');
 const Counter = require('./Counter');
+const Receive = require('./Receive');
 
 
 const PORT = process.env.PORT || 3000;
@@ -158,6 +159,75 @@ app.delete('/farm/:id', async (req, res) => {
 
     // Send a proper response
     res.status(200).json({ message: "Farm deleted successfully" });
+
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+
+app.get('/receive', async (req, res) => {
+  try {
+    const receives = await Receive.find()
+      .populate('supplier', 'supplier')
+      .populate('product', 'product category unit');
+    res.json(receives);
+  } catch (error) {
+    console.error('Error fetching receives', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// GET receive by id
+app.get('/receive/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const receiveId = await Receive.findById(id);
+    res.json(receiveId);
+  } catch (error) {
+    console.error('Error fetching receive', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// POST create receive
+app.post('/receive', async (req, res) => {
+  try {
+    const { email, date, supplier, product, quantity } = req.body;
+    const newReceive = new Receive({ email, date, supplier, product, quantity });
+    await newReceive.save();
+    res.status(201).json(newReceive);
+  } catch (error) {
+    console.error('Error creating receive', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+//update Receive
+app.patch("/receive/:id", async (req, res) => {
+  try {
+    const _id = req.params.id;
+    const updateReceive = await Receive.findByIdAndUpdate(_id, req.body, {
+      new: true
+    });
+    res.send(updateReceive);
+  }
+  catch (e) {
+    res.status(400).send(e);
+  }
+});
+
+// DELETE receive
+app.delete('/receive/:id', async (req, res) => {
+  try {
+    const _id = req.params.id;
+    const user = await Receive.findByIdAndDelete(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Send a proper response
+    res.status(200).json({ message: "Receive deleted successfully" });
 
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -889,7 +959,7 @@ app.get('/counter', async (req, res) => {
 
 app.get('/dailyentry', async (req, res) => {
   try {
-    
+
     const entries = await DailyEntry.find().sort({ _id: -1 });
     res.json(entries);
   } catch (error) {

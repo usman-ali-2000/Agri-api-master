@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Counter = require('./Counter');
 
 const dailyEntrySchema = new mongoose.Schema({
-  id: { type: String, unique: true, immutable: true }, // 👈 must be String now
+  id: { type: String, unique: true, immutable: true },
 
   farm: String,
   plot: String,
