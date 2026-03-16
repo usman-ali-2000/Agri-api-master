@@ -13,9 +13,12 @@ const dailyEntrySchema = new mongoose.Schema({
   deal: String,
   time: String,
   mean: String,
-  fuel: String,
-  person: String,
-  quantity: String,
+  category: String,
+  machinery:String,
+  product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  fuel: Number,
+  person: Number,
+  quantity: Number,
   moga: String,
   units: String,
   email: String,
@@ -33,8 +36,8 @@ dailyEntrySchema.pre('save', async function (next) {
     this.year = year;
 
     const counter = await Counter.findByIdAndUpdate(
-      `dailyEntry-${year}`,     
-      { $inc: { seq: 1 } },    
+      `dailyEntry-${year}`,
+      { $inc: { seq: 1 } },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 

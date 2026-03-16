@@ -177,6 +177,37 @@ app.get('/receive', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
+app.get('/receive/categories', async (req, res) => {
+  try {
+    const categories = await Receive.aggregate([
+      {
+        $lookup: {
+          from: "products", // collection name
+          localField: "product",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+      { $unwind: "$product" },
+      {
+        $group: {
+          _id: "$product.category"
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          category: "$_id"
+        }
+      }
+    ]);
+
+    res.json(categories);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
+});
 
 // GET receive by id
 app.get('/receive/:id', async (req, res) => {
@@ -960,7 +991,7 @@ app.get('/counter', async (req, res) => {
 app.get('/dailyentry', async (req, res) => {
   try {
 
-    const entries = await DailyEntry.find().sort({ _id: -1 });
+    const entries = await DailyEntry.find().sort({ _id: -1 }).populate('product', 'product category unit');
     res.json(entries);
   } catch (error) {
     console.error('Error fetching daily entries', error);
@@ -971,8 +1002,8 @@ app.get('/dailyentry', async (req, res) => {
 // POST create daily entry
 app.post('/dailyentry', async (req, res) => {
   try {
-    const { id, farm, plot, season, area, stage, type, deal, time, mean, fuel, person, quantity, moga, units, email, date, year } = req.body;
-    const newEntry = new DailyEntry({ id, farm, plot, season, area, stage, type, deal, time, mean, fuel, person, quantity, moga, units, email, date, year });
+    const { id, farm, plot, season, area, stage, type, deal, time, mean, category, machinery, product, person, quantity, moga, units, email, date, year } = req.body;
+    const newEntry = new DailyEntry({ id, farm, plot, season, area, stage, type, deal, time, mean, category, machinery, product, person, quantity, moga, units, email, date, year });
     await newEntry.save();
     res.status(201).json(newEntry);
   } catch (error) {
@@ -1192,6 +1223,122 @@ app.delete('/fuel/:id', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
+
+function parseDMY(dateString) {
+  const [day, month, year] = dateString.split("/");
+  return new Date(Number(year), Number(month) - 1, Number(day));
+}
+
+app.post("/inventory-report", async (req, res) => {
+  try {
+    const { from, to, farm, product } = req.body;
+
+    if (!from || !to || !farm || !product) {
+      return res.status(400).json({ message: "From, To and Product required" });
+    }
+
+    const fromDate = parseDMY(from);
+    const toDate = parseDMY(to);
+    toDate.setHours(23, 59, 59, 999);
+
+    // ✅ Fetch only selected product
+    const receiveData = await Receive.find({
+      product: product
+    });
+
+    const dailyData = await DailyEntry.find({
+      $and: [
+        { product: product },
+        { farm: farm }
+      ]
+    });
+
+    console.log('daily:', dailyData, 'receive:');
+
+    let openingBalance = 0;
+
+    receiveData.forEach(item => {
+      const itemDate = new Date(item.createdAt);
+      if (itemDate < fromDate) {
+        openingBalance += Number(item.quantity);
+      }
+    });
+
+    dailyData.forEach(item => {
+      const itemDate = new Date(item.createdAt);
+      if (itemDate < fromDate) {
+        openingBalance -= Number(item.quantity);
+      }
+    });
+
+    // ===============================
+    // ✅ 2. Filter Between Dates
+    // ===============================
+
+    const incomeBetween = receiveData
+      .filter(item => {
+        const d = new Date(item.createdAt);
+        return d >= fromDate && d <= toDate;
+      })
+      .map(item => ({
+        date: item.createdAt,
+        type: "receive",
+        quantity: item.quantity
+      }));
+
+    const expenseBetween = dailyData
+      .filter(item => {
+        const d = new Date(item.createdAt);
+        return d >= fromDate && d <= toDate;
+      })
+      .map(item => ({
+        date: item.createdAt,
+        type: "issue",
+        quantity: item.quantity
+      }));
+
+    // ===============================
+    // ✅ 3. Merge & Sort
+    // ===============================
+
+    const combined = [...incomeBetween, ...expenseBetween]
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    // ===============================
+    // ✅ 4. Running Stock Balance
+    // ===============================
+
+    let runningBalance = openingBalance;
+
+    const ledger = combined.map(item => {
+      if (item.type === "receive") {
+        runningBalance += Number(item.quantity);
+      } else {
+        runningBalance -= Number(item.quantity);
+      }
+
+      return {
+        ...item,
+        balance: runningBalance
+      };
+    });
+
+    // Insert opening row
+    ledger.unshift({
+      date: from,
+      type: "opening",
+      quantity: 0,
+      balance: openingBalance,
+    });
+
+    res.status(200).json({ ledger });
+
+  } catch (error) {
+    console.error("Error fetch report", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
