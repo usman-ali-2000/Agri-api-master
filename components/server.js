@@ -1002,8 +1002,8 @@ app.get('/dailyentry', async (req, res) => {
 // POST create daily entry
 app.post('/dailyentry', async (req, res) => {
   try {
-    const { id, farm, plot, season, area, stage, type, deal, time, mean, category, machinery, product, person, quantity, moga, units, email, date, year } = req.body;
-    const newEntry = new DailyEntry({ id, farm, plot, season, area, stage, type, deal, time, mean, category, machinery, product, person, quantity, moga, units, email, date, year });
+    const { id, farm, plot, season, area, stage, type, deal, time, mean, category, machinery, product, fuel, person, quantity, moga, units, email, date, year } = req.body;
+    const newEntry = new DailyEntry({ id, farm, plot, season, area, stage, type, deal, time, mean, category, machinery, product, fuel, person, quantity, moga, units, email, date, year });
     await newEntry.save();
     res.status(201).json(newEntry);
   } catch (error) {
@@ -1241,19 +1241,29 @@ app.post("/inventory-report", async (req, res) => {
     const toDate = parseDMY(to);
     toDate.setHours(23, 59, 59, 999);
 
-    // ✅ Fetch only selected product
+    const prod = await Product.findById(product);
+    const fuel = prod?.product?.toLowerCase() === 'diesel';
+
+    const getQty = (item) => {
+      console.log('fuel:', fuel, prod);
+      if (!fuel) return Number(item.quantity || 0);
+      if (fuel && String(item.product) === String(product)) return Number(item.quantity || 0) + Number(item.fuel || 0);
+      return Number(item.fuel || 0);
+    };
+
     const receiveData = await Receive.find({
-      product: product
-    });
+      product: product,
+    }).populate('supplier', 'supplier');
 
     const dailyData = await DailyEntry.find({
       $and: [
-        { product: product },
-        { farm: farm }
+        { farm },
+        { createdAt: { $gte: fromDate, $lte: toDate } },
+        fuel ? { $or: [{ product }, { fuel: { $gt: 0 } }] } : { product }
       ]
     });
 
-    console.log('daily:', dailyData, 'receive:');
+    console.log('daily:', dailyData, 'receive:', receiveData);
 
     let openingBalance = 0;
 
@@ -1267,13 +1277,9 @@ app.post("/inventory-report", async (req, res) => {
     dailyData.forEach(item => {
       const itemDate = new Date(item.createdAt);
       if (itemDate < fromDate) {
-        openingBalance -= Number(item.quantity);
+        openingBalance -= getQty(item);
       }
     });
-
-    // ===============================
-    // ✅ 2. Filter Between Dates
-    // ===============================
 
     const incomeBetween = receiveData
       .filter(item => {
@@ -1281,6 +1287,7 @@ app.post("/inventory-report", async (req, res) => {
         return d >= fromDate && d <= toDate;
       })
       .map(item => ({
+        detail:item?.supplier?.supplier,
         date: item.createdAt,
         type: "receive",
         quantity: item.quantity
@@ -1290,23 +1297,16 @@ app.post("/inventory-report", async (req, res) => {
       .filter(item => {
         const d = new Date(item.createdAt);
         return d >= fromDate && d <= toDate;
-      })
-      .map(item => ({
+      }).map(item => ({
+        detail:item.stage,
         date: item.createdAt,
         type: "issue",
-        quantity: item.quantity
+        quantity: getQty(item)
       }));
 
-    // ===============================
-    // ✅ 3. Merge & Sort
-    // ===============================
 
     const combined = [...incomeBetween, ...expenseBetween]
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-    // ===============================
-    // ✅ 4. Running Stock Balance
-    // ===============================
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     let runningBalance = openingBalance;
 
@@ -1323,9 +1323,8 @@ app.post("/inventory-report", async (req, res) => {
       };
     });
 
-    // Insert opening row
     ledger.unshift({
-      date: from,
+      date: fromDate,
       type: "opening",
       quantity: 0,
       balance: openingBalance,
